@@ -1,0 +1,6 @@
+pymongo
+youtube_dl
+ffmpy
+eyed3
+Pillow
+alive-progress
