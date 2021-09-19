@@ -101,9 +101,9 @@ try:
     for opt, arg in opts:
         if opt in ("-c", "--config"):
             configFile = arg
-    if configFile:
-        if not os.path.exists(configFile):
-            sys.exit(f"{bcolors.FAIL}Error: Config file does not exist{bcolors.ENDC}")
+            if not os.path.exists(configFile):
+                sys.exit(f"{bcolors.FAIL}Error: Config file does not exist{bcolors.ENDC}")
+    if os.path.exists(configFile):
         if os.path.isdir(configFile):
             sys.exit(f"{bcolors.FAIL}Error: Config file is a directory{bcolors.ENDC}")
         with open(configFile, "r") as configJson:
@@ -164,7 +164,7 @@ if not playlistId and not playlistFile:
 if playlistId and playlistFile:
     print(f"{bcolors.FAIL}Error: Playlist ID and Playlist File can not be used at the same time{bcolors.ENDC}")
     usage(True)
-if len(playlistId) != 24:
+if playlistId and len(playlistId) != 24:
     sys.exit(f"{bcolors.FAIL}Error: Invalid Musare Playlist ID{bcolors.ENDC}")
 if playlistFile:
     if not os.path.exists(playlistFile):
