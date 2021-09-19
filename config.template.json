@@ -1,0 +1,15 @@
+{
+    "playlistId": "",
+    "playlistFile": "musare-privateplaylist.json",
+    "outputPath": "downloads",
+    "outputFormat": "audio",
+    "downloadImages": true,
+    "maxSongs": 0,
+    "mongo": {
+        "host": "localhost",
+        "port": 27017,
+        "username": "musare",
+        "password": "musare",
+        "database": "musare"
+    }
+}

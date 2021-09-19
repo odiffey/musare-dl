@@ -1,0 +1,6 @@
+config.json
+*.mp3
+*.mp4
+*.tmp
+*.tmp.part
+*.jpg

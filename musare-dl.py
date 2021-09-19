@@ -49,81 +49,158 @@ def usage(e=False):
     -f outputFormat,--format=outputFormat | Format of download, audio or video
     -i downloadImages,--images=downloadImages | Whether to download images, true or false
     --max-songs=maxSongs | Maximum number of songs to download
+    --mongo-host=mongoHost | MongoDB Host
+    --mongo-port=mongoPort | MongoDB Port
+    --mongo-username=mongoUsername | MongoDB Username
+    --mongo-password=mongoPassword | MongoDB Password
+    --mongo-database=mongoDatabase | MongoDB Database
     """)
     if e:
         sys.exit(2)
 
-def slugify(value, allow_unicode=False):
+def slugify(value):
     value = unicodedata.normalize("NFKD", str(value)).encode("ascii", "ignore").decode("ascii")
     value = re.sub(r"[^(?!+)\w\s-]", "", value)
     return re.sub(r"[\s]+", "_", value).strip("-_")
 
-playlistId= None
-playlistFile= None
+mongoSettings = {}
+playlistId = None
+playlistFile = None
 outputDir = os.path.join(os.getcwd(), "")
 outputFormat = None
+configFile = f"{outputDir}config.json"
 downloadImages = True
 maxSongs = 0
-
-print(f"{bcolors.BOLD}{bcolors.OKCYAN}musare-dl{bcolors.ENDC}")
 
 os.chdir(outputDir)
 
 try:
-    opts, args = getopt.getopt(sys.argv[1:], "p:P:o:f:i:h", ["playlist-id=", "playlist-file=", "output=", "format=", "images=", "help", "max-songs="])
+    opts, args = getopt.getopt(
+        sys.argv[1:],
+        "p:P:o:f:i:c:h",
+        [
+            "playlist-id=",
+            "playlist-file=",
+            "output=",
+            "format=",
+            "images=",
+            "config=",
+            "help",
+            "max-songs=",
+            "mongo-host=",
+            "mongo-port=",
+            "mongo-username=",
+            "mongo-password=",
+            "mongo-database="
+        ]
+    )
 except getopt.GetoptError:
     usage(True)
+
+try:
+    for opt, arg in opts:
+        if opt in ("-c", "--config"):
+            configFile = arg
+    if configFile:
+        if not os.path.exists(configFile):
+            sys.exit(f"{bcolors.FAIL}Error: Config file does not exist{bcolors.ENDC}")
+        if os.path.isdir(configFile):
+            sys.exit(f"{bcolors.FAIL}Error: Config file is a directory{bcolors.ENDC}")
+        with open(configFile, "r") as configJson:
+            config = json.load(configJson)
+        for var in ["playlistId", "playlistFile", "outputPath", "outputFile", "downloadImages", "maxSongs"]:
+            if keys_exists(config, var):
+                globals()[var] = config[var]
+        for param in ["host", "port", "username", "password", "database"]:
+            if not keys_exists(mongoSettings, param) and keys_exists(config, "mongo", param):
+                mongoSettings[param] = config["mongo"][param]
+        if not keys_exists(mongoSettings, "host"):
+            mongoSettings["host"] = "localhost"
+        if not keys_exists(mongoSettings, "port"):
+            mongoSettings["port"] = 27017
+        if not keys_exists(mongoSettings, "username") or not keys_exists(mongoSettings, "password") or not keys_exists(mongoSettings, "database"):
+            raise ValueError
+except ValueError:
+    print(f"{bcolors.FAIL}Error: Mongo username, password and database required{bcolors.ENDC}")
+    usage(True)
+except:
+    sys.exit(f"{bcolors.FAIL}Error loading config.json{bcolors.ENDC}")
 
 for opt, arg in opts:
     if opt in ("-h", "--help"):
         usage(True)
     elif opt in ("-p", "--playlist-id"):
-        if len(arg) == 24:
-            playlistId = arg
-        else:
-            sys.exit(f"{bcolors.FAIL}Error: Invalid Musare Playlist ID{bcolors.ENDC}")
+        playlistId = arg
     elif opt in ("-P", "--playlist-file"):
         playlistFile = arg
-        if not os.path.exists(playlistFile):
-            sys.exit(f"{bcolors.FAIL}Error: Musare Playlist File does not exist{bcolors.ENDC}")
-        if os.path.isdir(playlistFile):
-            sys.exit(f"{bcolors.FAIL}Error: Musare Playlist File is a directory{bcolors.ENDC}")
     elif opt in ("-o", "--output"):
         outputDir = arg
-        if os.path.exists(outputDir):
-            if not os.path.isdir(outputDir):
-                sys.exit(f"{bcolors.FAIL}Error: Output path is not a directory{bcolors.ENDC}")
-            outputDir = os.path.join(outputDir, "")
-        else:
-            sys.exit(f"{bcolors.FAIL}Error: Output directory does not exist{bcolors.ENDC}")
     elif opt in ("-f", "--format"):
-        outputFormat = arg.lower()
-        if outputFormat != "audio" and outputFormat != "video":
-            sys.exit(f"{bcolors.FAIL}Error: Invalid format, audio or video only{bcolors.ENDC}")
+        outputFormat = arg
     elif opt in ("-i", "--images"):
-        if arg.lower() == "true":
-            downloadImages = True
-        elif arg.lower() == "false":
-            downloadImages = False
-        else:
-            sys.exit(f"{bcolors.FAIL}Error: Invalid images, must be True or False{bcolors.ENDC}")
+        downloadImages = arg
+    elif opt in ("-c", "--config"):
+        pass
     elif opt == "--max-songs":
         if arg.isdigit() == False:
             sys.exit(f"{bcolors.FAIL}Error: Invalid max-songs, must be int{bcolors.ENDC}")
-        maxSongs = int(arg)
+        maxSongs = arg
+    elif opt == "--mongo-host":
+        mongoSettings["host"] = arg
+    elif opt == "--mongo-port":
+        mongoSettings["port"] = arg
+    elif opt == "--mongo-username":
+        mongoSettings["username"] = arg
+    elif opt == "--mongo-password":
+        mongoSettings["password"] = arg
+    elif opt == "--mongo-database":
+        mongoSettings["database"] = arg
     else:
         usage(True)
 
 if not playlistId and not playlistFile:
     print(f"{bcolors.FAIL}Error: Playlist ID or Playlist File need to be specified{bcolors.ENDC}")
     usage(True)
-if not outputFormat:
+if playlistId and playlistFile:
+    print(f"{bcolors.FAIL}Error: Playlist ID and Playlist File can not be used at the same time{bcolors.ENDC}")
+    usage(True)
+if len(playlistId) != 24:
+    sys.exit(f"{bcolors.FAIL}Error: Invalid Musare Playlist ID{bcolors.ENDC}")
+if playlistFile:
+    if not os.path.exists(playlistFile):
+        sys.exit(f"{bcolors.FAIL}Error: Musare Playlist File does not exist{bcolors.ENDC}")
+    if os.path.isdir(playlistFile):
+        sys.exit(f"{bcolors.FAIL}Error: Musare Playlist File is a directory{bcolors.ENDC}")
+if os.path.exists(outputDir):
+    if not os.path.isdir(outputDir):
+        sys.exit(f"{bcolors.FAIL}Error: Output path is not a directory{bcolors.ENDC}")
+    outputDir = os.path.join(outputDir, "")
+else:
+    sys.exit(f"{bcolors.FAIL}Error: Output directory does not exist{bcolors.ENDC}")
+if outputFormat:
+    outputFormat = outputFormat.lower()
+    if outputFormat != "audio" and outputFormat != "video":
+        sys.exit(f"{bcolors.FAIL}Error: Invalid format, audio or video only{bcolors.ENDC}")
+else:
     outputFormat = "audio"
+if str(downloadImages).lower() == "true":
+    downloadImages = True
+elif str(downloadImages).lower() == "false":
+    downloadImages = False
+else:
+    sys.exit(f"{bcolors.FAIL}Error: Invalid images, must be True or False{bcolors.ENDC}")
+maxSongs = int(maxSongs)
 
 if playlistId and not playlistFile:
     try:
-        mongo = pymongo.MongoClient("localhost", username="musare", password="musare", authSource="musare")
-        mydb = mongo["musare"]
+        mongo = pymongo.MongoClient(
+            host=mongoSettings["host"],
+            port=int(mongoSettings["port"]),
+            username=mongoSettings["username"],
+            password=mongoSettings["password"],
+            authSource=mongoSettings["database"]
+        )
+        mydb = mongo[mongoSettings["database"]]
 
         songs = []
         for playlist in mydb["playlists"].find({ "_id": ObjectId(playlistId) }, { "songs._id" }):
@@ -154,7 +231,7 @@ completeSongs = []
 failedSongs = []
 if maxSongs > 0 and songsCount > maxSongs:
     songsCount = maxSongs
-with alive_bar(songsCount) as bar:
+with alive_bar(songsCount, title=f"{bcolors.BOLD}{bcolors.OKCYAN}musare-dl{bcolors.ENDC}") as bar:
     for song in songs:
         i = i + 1
         if maxSongs != 0 and i > maxSongs:
@@ -162,28 +239,23 @@ with alive_bar(songsCount) as bar:
             break
         try:
             bar.text(f"{bcolors.OKBLUE}Downloading ({song['_id']}) {','.join(song['artists'])} - {song['title']}..{bcolors.ENDC}")
+            ydl_opts = {
+                "outtmpl": f"{song['_id']}.tmp",
+                "quiet": True,
+                "no_warnings": True
+            }
             if outputFormat == "audio":
                 outputExtension = "mp3"
-                ydl_opts = {
-                    "outtmpl": f"{song['_id']}.tmp",
-                    "format": "bestaudio[ext=m4a]",
-                    "quiet": True,
-                    "no_warnings": True
-                }
+                ydl_opts["format"] = "bestaudio[ext=m4a]"
             elif outputFormat == "video":
                 outputExtension = "mp4"
-                ydl_opts = {
-                    "outtmpl": f"{song['_id']}.tmp",
-                    "format": "best[height<=1080]/bestaudio",
-                    "quiet": True,
-                    "no_warnings": True
-                }
+                ydl_opts["format"] = "best[height<=1080]/bestaudio"
             ffmpegOpts = ["-hide_banner", "-loglevel", "error"]
-            if keys_exists(song, "duration") and keys_exists(song, "skipDuration"):
-                ffmpegOpts.append("-t")
-                ffmpegOpts.append(str(song["duration"]))
+            if keys_exists(song, "skipDuration") and keys_exists(song, "duration"):
                 ffmpegOpts.append("-ss")
                 ffmpegOpts.append(str(song["skipDuration"]))
+                ffmpegOpts.append("-t")
+                ffmpegOpts.append(str(song["duration"]))
             with youtube_dl.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([f"https://www.youtube.com/watch?v={song['youtubeId']}"])
             bar.text(f"{bcolors.OKBLUE}Converting ({song['_id']}) {','.join(song['artists'])} - {song['title']}..{bcolors.ENDC}")
