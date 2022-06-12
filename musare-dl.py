@@ -284,7 +284,7 @@ with alive_bar(songsCount, title=f"{bcolors.BOLD}{bcolors.OKCYAN}musare-dl{bcolo
                     img = Image.open(request.urlopen(imgRequest))
                     img.save(f"images/{fileName}.jpg", "JPEG")
                     if outputFormat == "audio":
-                        thumb = img.resize((32, 32), Image.ANTIALIAS)
+                        thumb = img.resize((32, 32), Image.Resampling.LANCZOS)
                         thumb.save(f"images/{fileName}.thumb.jpg", "JPEG")
                         imgData = open(f"images/{fileName}.jpg", "rb").read()
                         thumbData = open(f"images/{fileName}.thumb.jpg", "rb").read()
